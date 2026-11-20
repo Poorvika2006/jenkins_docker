@@ -82,15 +82,18 @@ stage('Login to DockerHub') {
 }
 
         // Stage 4: Push Docker Image
-        stage('Push Image') {
-            steps {
-                withEnv(["DOCKER_CONFIG=${env.WORKSPACE}\\.docker"]) {
-                    bat '''
-                        docker push %DOCKER_IMAGE%:%IMAGE_TAG%
-                    '''
-                }
-            }
+
+stage('Push Image') {
+    steps {
+        withEnv(["DOCKER_CONFIG=${env.WORKSPACE}\\.docker"]) {
+            bat '''
+                docker --config "%DOCKER_CONFIG%" push %DOCKER_IMAGE%:%IMAGE_TAG%
+
+                if errorlevel 1 exit /b 1
+            '''
         }
+    }
+}
 
         // Stage 5: Deploy Container
         stage('Deploy Container') {
