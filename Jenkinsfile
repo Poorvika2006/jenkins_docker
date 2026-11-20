@@ -43,7 +43,7 @@ stage('Login to DockerHub') {
         withEnv(["DOCKER_CONFIG=${env.WORKSPACE}\\.docker"]) {
             withCredentials([
                 usernamePassword(
-                    credentialsId: 'dockerhub-login',
+                    credentialsId: 'dockerhub-pat-new',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_TOKEN'
                 )
