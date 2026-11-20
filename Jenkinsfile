@@ -36,67 +36,67 @@ pipeline {
         }
 
         // Stage 3: Login to Docker Hub
-        stage('Login to DockerHub') {
-            steps {
-                withEnv(["DOCKER_CONFIG=${env.WORKSPACE}\\.docker"]) {
-                    withCredentials([
-                        usernamePassword(
-                            credentialsId: 'dockerhub-login',
-                            usernameVariable: 'DOCKER_USER',
-                            passwordVariable: 'DOCKER_TOKEN'
-                        )
-                    ]) {
-                        powershell '''
-                            $ErrorActionPreference = "Stop"
+       
+stage('Login to DockerHub') {
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'dockerhub-login',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_TOKEN'
+            )
+        ]) {
+            powershell '''
+                $ErrorActionPreference = "Stop"
 
-                            New-Item -ItemType Directory `
-                                -Force -Path $env:DOCKER_CONFIG | Out-Null
+                Write-Host "Checking Jenkins Docker Hub credentials..."
 
-                            $configPath = Join-Path $env:DOCKER_CONFIG "config.json"
-                            '{"auths":{}}' | Set-Content -Path $configPath -Encoding ASCII
+                $user = $env:DOCKER_USER.Trim()
+                $token = $env:DOCKER_TOKEN.Trim()
 
-                            $cleanUser = $env:DOCKER_USER.Trim()
-                            $cleanToken = $env:DOCKER_TOKEN.Trim()
-
-                            if ([string]::IsNullOrWhiteSpace($cleanUser) -or [string]::IsNullOrWhiteSpace($cleanToken)) {
-                                throw "DOCKER_USER or DOCKER_TOKEN is empty"
-                            }
-
-                            $psi = New-Object System.Diagnostics.ProcessStartInfo
-                            $psi.FileName = "docker.exe"
-                            $psi.Arguments = "--config `"$env:DOCKER_CONFIG`" login -u `"$cleanUser`" --password-stdin"
-                            $psi.UseShellExecute = $false
-                            $psi.RedirectStandardInput = $true
-                            $psi.RedirectStandardOutput = $true
-                            $psi.RedirectStandardError = $true
-                            $psi.CreateNoWindow = $true
-
-                            $p = New-Object System.Diagnostics.Process
-                            $p.StartInfo = $psi
-
-                            [void]$p.Start()
-
-                            $bytes = [System.Text.Encoding]::ASCII.GetBytes($cleanToken + "`n")
-                            $p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-                            $p.StandardInput.Close()
-
-                            $output = $p.StandardOutput.ReadToEnd()
-                            $errorOutput = $p.StandardError.ReadToEnd()
-                            $p.WaitForExit()
-
-                            Write-Host $output
-
-                            if ($p.ExitCode -ne 0) {
-                                Write-Host $errorOutput
-                                throw "DockerHub login failed"
-                            }
-
-                            Write-Host "DockerHub login successful"
-                        '''
-                    }
+                if ($user -ne "poorvi2396") {
+                    throw "Wrong Docker Hub username in Jenkins credentials"
                 }
-            }
+
+                if ([string]::IsNullOrWhiteSpace($token)) {
+                    throw "Docker Hub token is empty"
+                }
+
+                $configDir = Join-Path $env:WORKSPACE ".docker"
+                New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+
+                $env:DOCKER_CONFIG = $configDir
+
+                $psi = New-Object System.Diagnostics.ProcessStartInfo
+                $psi.FileName = "docker.exe"
+                $psi.Arguments = "--config `"$configDir`" login --username `"$user`" --password-stdin"
+                $psi.UseShellExecute = $false
+                $psi.RedirectStandardInput = $true
+                $psi.RedirectStandardOutput = $true
+                $psi.RedirectStandardError = $true
+                $psi.CreateNoWindow = $true
+
+                $process = New-Object System.Diagnostics.Process
+                $process.StartInfo = $psi
+                [void]$process.Start()
+
+                $process.StandardInput.WriteLine($token)
+                $process.StandardInput.Close()
+
+                $output = $process.StandardOutput.ReadToEnd()
+                $errorOutput = $process.StandardError.ReadToEnd()
+                $process.WaitForExit()
+
+                if ($process.ExitCode -ne 0) {
+                    Write-Host "Docker login returned an error."
+                    throw "Docker Hub login failed"
+                }
+
+                Write-Host "Docker Hub login successful!"
+            '''
         }
+    }
+}
 
         // Stage 4: Push Docker Image
         stage('Push Image') {
